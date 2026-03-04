@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockManager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f2f5; color: #333; }
+
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 { font-size: 24px; }
+
+        .container { max-width: 1000px; margin: 40px auto; padding: 0 20px; }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card h2 { margin-bottom: 16px; color: #2c3e50; font-size: 18px; }
+
+        .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+        input, select {
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            flex: 1;
+            min-width: 150px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background: #34495e; }
+        button.danger { background: #e74c3c; }
+        button.danger:hover { background: #c0392b; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; }
+        th { background: #f8f9fa; font-weight: 600; color: #555; }
+        tr:hover { background: #f8f9fa; }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            background: #e8f4fd;
+            color: #2980b9;
+        }
+
+        .msg { padding: 10px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 14px; display: none; }
+        .msg.ok { background: #d4edda; color: #155724; display: block; }
+        .msg.error { background: #f8d7da; color: #721c24; display: block; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>📦 StockManager</h1>
+    <span>API REST — Spring Boot + MySQL</span>
+</header>
+
+<div class="container">
+
+    <!-- Mensaje -->
+    <div id="msg" class="msg"></div>
+
+    <!-- Formulario nuevo producto -->
+    <div class="card">
+        <h2>Agregar producto</h2>
+        <div class="form-row">
+            <input type="text" id="nombre" placeholder="Nombre del producto">
+            <input type="number" id="precio" placeholder="Precio">
+            <input type="number" id="stock" placeholder="Stock">
+            <select id="categoria">
+                <option value="">Seleccionar categoría</option>
+            </select>
+        </div>
+        <button onclick="crearProducto()">Agregar producto</button>
+    </div>
+
+    <!-- Tabla de productos -->
+    <div class="card">
+        <h2>Productos en inventario</h2>
+        <table>
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Nombre</th>
+                <th>Precio</th>
+                <th>Stock</th>
+                <th>Categoría</th>
+                <th>Acción</th>
+            </tr>
+            </thead>
+            <tbody id="tablaProductos"></tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+    const API = 'http://localhost:8080';
+
+    function mostrarMsg(texto, tipo) {
+        const msg = document.getElementById('msg');
+        msg.textContent = texto;
+        msg.className = 'msg ' + tipo;
+        setTimeout(() => msg.className = 'msg', 3000);
+    }
+
+    async function cargarCategorias() {
+        const res = await fetch(`${API}/categorias`);
+        const categorias = await res.json();
+        const select = document.getElementById('categoria');
+        categorias.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.nombre;
+            select.appendChild(opt);
+        });
+    }
+
+    async function cargarProductos() {
+        const res = await fetch(`${API}/productos`);
+        const productos = await res.json();
+        const tbody = document.getElementById('tablaProductos');
+        tbody.innerHTML = '';
+        productos.forEach(p => {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${p.id}</td>
+                    <td>${p.nombre}</td>
+                    <td>$${p.precio}</td>
+                    <td>${p.stock}</td>
+                    <td><span class="badge">${p.categoria ? p.categoria.nombre : '-'}</span></td>
+                    <td><button class="danger" onclick="eliminarProducto(${p.id})">Eliminar</button></td>
+                </tr>
+            `;
+        });
+    }
+
+    async function crearProducto() {
+        const nombre = document.getElementById('nombre').value;
+        const precio = document.getElementById('precio').value;
+        const stock = document.getElementById('stock').value;
+        const categoriaId = document.getElementById('categoria').value;
+
+        if (!nombre || !precio || !stock || !categoriaId) {
+            mostrarMsg('Completá todos los campos', 'error');
+            return;
+        }
+
+        await fetch(`${API}/productos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, precio, stock, categoria: { id: categoriaId } })
+        });
+
+        mostrarMsg('Producto agregado correctamente', 'ok');
+        document.getElementById('nombre').value = '';
+        document.getElementById('precio').value = '';
+        document.getElementById('stock').value = '';
+        cargarProductos();
+    }
+
+    async function eliminarProducto(id) {
+        await fetch(`${API}/productos/${id}`, { method: 'DELETE' });
+        mostrarMsg('Producto eliminado', 'ok');
+        cargarProductos();
+    }
+
+    cargarCategorias();
+    cargarProductos();
+</script>
+
+</body>
+</html>
+```
+
